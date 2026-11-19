@@ -8,7 +8,7 @@ import shutil
 import subprocess
 
 from .config import SnmpConfig
-from .models import Inventory
+from .inventory import Inventory
 from .opennebula import guess_platform, slugify_vm_name
 
 log = logging.getLogger(__name__)

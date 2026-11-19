@@ -13,7 +13,7 @@ from xmlrpc.client import ServerProxy, Transport
 import httpx
 
 from .config import OpenNebulaConfig
-from .models import DiskInfo, HostInfo, Inventory, NicInfo, VmInfo, VNetInfo
+from .inventory import DiskInfo, HostInfo, Inventory, NicInfo, VmInfo, VNetInfo
 
 log = logging.getLogger(__name__)
 

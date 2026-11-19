@@ -6,7 +6,7 @@ import logging
 from typing import Any
 
 from .config import AppConfig
-from .models import Inventory, VmInfo
+from .inventory import Inventory, VmInfo
 from .netbox import NetBoxClient, slugify
 from .opennebula import OpenNebulaClient, slugify_vm_name
 from .snmp import enrich_inventory
@@ -655,7 +655,7 @@ def run_bootstrap(cfg: AppConfig) -> int:
         return 1 if nb.stats["errors"] else 0
 
 
-def run_sync(cfg: AppConfig) -> int:
+def run_sync(cfg: AppConfig, out_stats: dict[str, int] | None = None) -> int:
     with NetBoxClient(cfg.netbox, dry_run=cfg.sync.dry_run) as nb:
         status = nb.ping()
         log.info(
@@ -677,6 +677,8 @@ def run_sync(cfg: AppConfig) -> int:
             rec.bootstrap()
             rec.sync(inventory)
             log.info("stats=%s", nb.stats)
+            if out_stats is not None:
+                out_stats.update(nb.stats)
             return 1 if nb.stats["errors"] else 0
         finally:
             one.close()

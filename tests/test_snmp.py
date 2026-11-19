@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 
 from netbox_opennebula_sync.config import DEFAULT_EXCLUDE_INTERFACES, SnmpConfig
-from netbox_opennebula_sync.models import Inventory, NicInfo, VmInfo
+from netbox_opennebula_sync.inventory import Inventory, NicInfo, VmInfo
 from netbox_opennebula_sync.snmp import (
     _normalize_hostname,
     enrich_inventory,

@@ -30,7 +30,6 @@ class NetBoxConfig:
     host_device_type: str = "KVM Host"
     dns_suffix: str = ""
     socks_proxy: str | None = None
-    # Optional Host header (e.g. netbox.example when talking to 127.0.0.1:8001)
     host_header: str | None = None
     timeout: float = 30.0
 

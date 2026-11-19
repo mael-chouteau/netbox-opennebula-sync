@@ -1,0 +1,74 @@
+{% extends 'base/layout.html' %}
+{% load helpers %}
+
+{% block title %}OpenNebula — Live Status{% endblock %}
+
+{% block header %}
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="h3 mb-0">OpenNebula — Live Status</h1>
+    <a href="{% url 'plugins:netbox_opennebula_sync:settings' %}" class="btn btn-outline-primary">
+      <i class="mdi mdi-cog"></i> Settings
+    </a>
+  </div>
+{% endblock %}
+
+{% block content %}
+<div class="row mb-3">
+  <div class="col-md-6">
+    <div class="card">
+      <h5 class="card-header">OpenNebula</h5>
+      <div class="card-body">
+        {% if live.reachable %}
+          <p class="mb-2"><span class="badge text-bg-success">Reachable</span>
+            {% if live.latency_ms %}<span class="text-muted">{{ live.latency_ms }} ms</span>{% endif %}
+          </p>
+          <table class="table table-hover attr-table mb-0">
+            <tr><th>Version</th><td>{{ live.version }}</td></tr>
+            <tr><th>Zone</th><td>{{ live.zone_name }} <span class="text-muted">#{{ live.zone_id }}</span></td></tr>
+            <tr><th>Cluster</th><td>{{ live.cluster_name }} <span class="text-muted">#{{ live.cluster_id }}</span></td></tr>
+            <tr><th>Hosts</th><td>{{ live.hosts_active }} active / {{ live.hosts_offline }} offline</td></tr>
+            <tr><th>VMs</th><td>{{ live.vms_active }} active / {{ live.vms_offline }} offline{% if live.vms_other %} / {{ live.vms_other }} other{% endif %}</td></tr>
+            <tr><th>VNets</th><td>{{ live.vnets }}</td></tr>
+          </table>
+        {% else %}
+          <p class="mb-2"><span class="badge text-bg-danger">Unreachable</span></p>
+          <p class="text-danger mb-0">{{ live.error|default:"Not configured" }}</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  <div class="col-md-6">
+    <div class="card">
+      <h5 class="card-header">Last sync</h5>
+      <div class="card-body">
+        <table class="table table-hover attr-table mb-3">
+          <tr><th>Auto sync</th>
+            <td>{% if config.sync_enabled %}Every {{ config.sync_interval }} min{% else %}Disabled{% endif %}</td></tr>
+          <tr><th>Last success</th><td>{{ config.last_success_at|placeholder }}</td></tr>
+          <tr><th>Last failure</th><td>{{ config.last_failure_at|placeholder }}</td></tr>
+          <tr><th>Duration</th>
+            <td>{% if config.last_duration_seconds %}{{ config.last_duration_seconds|floatformat:1 }} s{% else %}{{ ''|placeholder }}{% endif %}</td></tr>
+          <tr><th>Stats</th>
+            <td>created {{ config.last_stats_created }} /
+                updated {{ config.last_stats_updated }} /
+                skipped {{ config.last_stats_skipped }} /
+                errors {{ config.last_stats_errors }}</td></tr>
+          {% if config.last_error %}
+          <tr><th>Error</th><td class="text-danger">{{ config.last_error }}</td></tr>
+          {% endif %}
+        </table>
+        <form method="post" class="d-inline">
+          {% csrf_token %}
+          <button type="submit" name="action" value="sync_now" class="btn btn-primary">
+            <i class="mdi mdi-sync"></i> Sync now
+          </button>
+          <button type="submit" name="action" value="test_connection" class="btn btn-outline-secondary">
+            <i class="mdi mdi-lan-connect"></i> Test connection
+          </button>
+          <a href="{% url 'plugins:netbox_opennebula_sync:status' %}" class="btn btn-outline-dark">Refresh</a>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
