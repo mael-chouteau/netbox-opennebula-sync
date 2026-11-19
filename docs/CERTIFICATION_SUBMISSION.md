@@ -12,8 +12,8 @@
 |-------|--------|
 | GitHub repository | https://github.com/mael-chouteau/netbox-opennebula-sync |
 | GitHub user ID | `mael-chouteau` (numeric id `101983244`) |
-| PyPI package | **TODO** — publish first, then e.g. https://pypi.org/project/netbox-opennebula-sync/ |
-| PyPI user ID | **TODO** — your PyPI username |
+| PyPI package | https://pypi.org/project/netbox-opennebula-sync/ |
+| PyPI user ID | `mchouteau` |
 | NetDev Slack handle | **TODO** — your Slack username |
 
 ## Email body
@@ -44,13 +44,12 @@ https://github.com/mael-chouteau/netbox-opennebula-sync
 
 ### PyPI Package Entry
 
-https://pypi.org/project/netbox-opennebula-sync/  
-*(publish the package before sending this email)*
+https://pypi.org/project/netbox-opennebula-sync/
 
 ### Maintainer IDs
 
 - **GitHub:** mael-chouteau (`101983244`)  
-- **PyPI:** \<YOUR_PYPI_USERNAME\>
+- **PyPI:** mchouteau
 
 ### Slack Handle
 
@@ -60,18 +59,3 @@ Thank you for considering this submission.
 
 Best regards,  
 Maël Chouteau
-
----
-
-## Publish to PyPI (blocker)
-
-Certification requires a live PyPI entry. From the project root, with a [PyPI API token](https://pypi.org/manage/account/token/):
-
-```bash
-python -m pip install --upgrade build twine
-python -m build
-TWINE_USERNAME=__token__ TWINE_PASSWORD=pypi-AgE... \
-  python -m twine upload dist/*
-```
-
-Then set the PyPI URL and username above and send the email.

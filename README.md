@@ -1,6 +1,7 @@
 # netbox-opennebula-sync
 
 [![CI](https://github.com/mael-chouteau/netbox-opennebula-sync/actions/workflows/ci.yml/badge.svg)](https://github.com/mael-chouteau/netbox-opennebula-sync/actions/workflows/ci.yml)
+[![PyPI](https://img.shields.io/pypi/v/netbox-opennebula-sync.svg)](https://pypi.org/project/netbox-opennebula-sync/)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![NetBox](https://img.shields.io/badge/NetBox-4.2%2B-green.svg)](https://github.com/netbox-community/netbox)
 
@@ -36,7 +37,7 @@ Compatible with **NetBox 4.2+** (tested on **4.7**). License: **Apache-2.0**.
 ## Installation
 
 ```bash
-/opt/netbox/venv/bin/pip install git+https://github.com/mael-chouteau/netbox-opennebula-sync.git
+/opt/netbox/venv/bin/pip install netbox-opennebula-sync
 ```
 
 In `configuration.py`:
