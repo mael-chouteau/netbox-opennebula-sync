@@ -1,0 +1,17 @@
+services:
+  netbox-opennebula-sync:
+    build: .
+    image: netbox-opennebula-sync:latest
+    restart: unless-stopped
+    command: ["daemon", "--interval", "900"]
+    environment:
+      NETBOX_URL: https://netbox.example.com
+      NETBOX_TOKEN: nbt_replace_me
+      ONE_ENDPOINT: http://opennebula.example.com:2633/RPC2
+      ONE_CREDENTIALS: "netbox-sync:replace_me"
+      SNMP_COMMUNITY: public
+    volumes:
+      - ./config.yaml:/etc/netbox-opennebula-sync/config.yaml:ro
+    # Uncomment if NetBox / OpenNebula are only reachable via a SOCKS proxy
+    # environment:
+    #   ALL_PROXY: socks5h://host.docker.internal:1080

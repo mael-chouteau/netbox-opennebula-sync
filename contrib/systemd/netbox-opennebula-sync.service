@@ -1,0 +1,35 @@
+[Unit]
+Description=OpenNebula → NetBox inventory sync
+Documentation=https://github.com/example/netbox-opennebula-sync
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/opt/netbox-opennebula-sync/venv/bin/netbox-opennebula-sync -c ${CREDENTIALS_DIRECTORY}/config.yaml sync
+WorkingDirectory=/opt/netbox-opennebula-sync
+LoadCredential=config.yaml:/etc/netbox-opennebula-sync/config.yaml
+
+DynamicUser=yes
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+ReadOnlyPaths=/opt/netbox-opennebula-sync
+CapabilityBoundingSet=
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+
+Nice=10
+TimeoutStartSec=30min
+
+[Install]
+WantedBy=multi-user.target

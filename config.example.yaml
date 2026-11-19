@@ -1,0 +1,49 @@
+# Example configuration for netbox-opennebula-sync
+# Copy to config.yaml or /etc/netbox-opennebula-sync/config.yaml and fill secrets.
+# Environment variables override these values (NETBOX_URL, NETBOX_TOKEN, ONE_*, SNMP_*).
+
+netbox:
+  url: https://netbox.example.com
+  token: nbt_replace_me
+  verify_ssl: true
+  # verify_ssl: /etc/ssl/certs/ca.crt
+  site: Default
+  tenant: null
+  cluster_name: OpenNebula default
+  create_missing_hosts: true
+  host_device_role: Hypervisor
+  host_manufacturer: Generic
+  host_device_type: KVM Host
+  dns_suffix: example.com
+  # socks_proxy: socks5h://127.0.0.1:1080
+  timeout: 30
+
+opennebula:
+  endpoint: http://opennebula.example.com:2633/RPC2
+  username: netbox-sync
+  token: replace_me
+  timeout: 30
+
+snmp:
+  enabled: true
+  community: public
+  timeout: 1
+  retries: 0
+  # Ignore placeholder hostnames from golden images / cloud-init defaults
+  ignore_hostnames:
+    - localhost
+    - demo
+    - demo.local
+    - ubuntu
+    - debian
+  # Skip container / virtual bridge noise when inspecting guest interfaces
+  exclude_interfaces: '^(lo|docker\d*|br-.*|veth.*|virbr\d*|cni\d*|flannel\..*|cali.*|tunl\d*)$'
+
+sync:
+  # mark_offline (safe default) | delete | ignore
+  orphan_policy: mark_offline
+  tags:
+    - opennebula
+    - discovered
+  interval: 900
+  dry_run: false

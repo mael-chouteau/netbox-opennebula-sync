@@ -1,0 +1,34 @@
+[Unit]
+Description=OpenNebula → NetBox continuous sync daemon
+Documentation=https://github.com/example/netbox-opennebula-sync
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/opt/netbox-opennebula-sync/venv/bin/netbox-opennebula-sync -c ${CREDENTIALS_DIRECTORY}/config.yaml daemon --interval 900
+WorkingDirectory=/opt/netbox-opennebula-sync
+LoadCredential=config.yaml:/etc/netbox-opennebula-sync/config.yaml
+Restart=on-failure
+RestartSec=30
+
+DynamicUser=yes
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+ReadOnlyPaths=/opt/netbox-opennebula-sync
+CapabilityBoundingSet=
+
+Nice=10
+
+[Install]
+WantedBy=multi-user.target
