@@ -58,10 +58,30 @@ def mask_to_prefixlen(mask: str) -> int:
 
 
 def slugify_vm_name(name: str) -> str:
-    """Normalize OpenNebula VM names for NetBox / DNS labels."""
-    cleaned = re.sub(r"[^A-Za-z0-9._-]+", "-", name.strip())
-    cleaned = re.sub(r"-{2,}", "-", cleaned).strip("-._")
+    """Normalize OpenNebula VM names for NetBox / RFC 1035 DNS labels."""
+    cleaned = name.strip().replace("_", "-")
+    cleaned = re.sub(r"[^A-Za-z0-9.-]+", "-", cleaned)
+    cleaned = re.sub(r"-{2,}", "-", cleaned).strip("-.")
     return cleaned.lower() or "vm"
+
+
+def dns_name_for_nic(vm_dns_name: str, *, is_primary: bool, network: str = "") -> str:
+    """Primary NIC keeps the VM FQDN; secondary NICs stay empty (or get a role suffix)."""
+    if not vm_dns_name:
+        return ""
+    if is_primary:
+        return vm_dns_name
+    net = (network or "").lower()
+    if "iscsi" in net:
+        suffix = "-iscsi"
+    elif "admin" in net or "administration" in net:
+        suffix = "-admin"
+    else:
+        return ""
+    if "." in vm_dns_name:
+        host, domain = vm_dns_name.split(".", 1)
+        return f"{host}{suffix}.{domain}"
+    return f"{vm_dns_name}{suffix}"
 
 
 def guess_platform(image: str, sysdescr: str = "") -> str | None:

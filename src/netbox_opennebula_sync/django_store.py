@@ -180,12 +180,9 @@ class DjangoStore:
             elif k == "virtual_machine_id":
                 qs = qs.filter(virtual_machine_id=v)
             elif k == "address":
-                # Match host portion (same spirit as REST ?address=10.0.0.1)
+                # django-netfields IPNetworkField: use net_host (not host/startswith)
                 host = str(v).split("/")[0]
-                try:
-                    qs = qs.filter(address__host=host)
-                except Exception:
-                    qs = qs.filter(address__startswith=host)
+                qs = qs.filter(address__net_host=host)
             elif k.endswith("_id") and hasattr(model, k):
                 qs = qs.filter(**{k: v})
             elif hasattr(model, k):
