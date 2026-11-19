@@ -100,9 +100,12 @@ ruff check src tests
 pytest -q
 ```
 
-## Catalog / community listing
+## Catalog / certification
 
-To suggest this plugin for the [NetBox Labs plugins catalog](https://netboxlabs.com/plugins/), contact the catalog team (see [Plugins wiki](https://github.com/netbox-community/netbox/wiki/Plugins)) and/or mention it in the NetDev Slack `#netbox-plugins` channel. A ready-to-send blurb lives in [`docs/CATALOG_SUBMISSION.md`](docs/CATALOG_SUBMISSION.md).
+- Catalog blurb: [`docs/CATALOG_SUBMISSION.md`](docs/CATALOG_SUBMISSION.md)  
+- **Plugin Certification** application (email `plugincertification@netboxlabs.com`): [`docs/CERTIFICATION_SUBMISSION.md`](docs/CERTIFICATION_SUBMISSION.md)  
+
+Certification requires a published **PyPI** package plus GitHub, PyPI and NetDev Slack maintainer IDs.
 
 ## License
 
