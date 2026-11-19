@@ -7,9 +7,11 @@ from typing import Any
 
 from .config import AppConfig
 from .inventory import Inventory, VmInfo
-from .netbox import NetBoxClient, slugify
+from .netbox import slugify
 from .opennebula import OpenNebulaClient, slugify_vm_name
+from .rest_store import RestStore
 from .snmp import enrich_inventory
+from .store import NetBoxStore
 
 log = logging.getLogger(__name__)
 
@@ -80,7 +82,7 @@ CUSTOM_FIELDS = [
 
 
 class Reconciler:
-    def __init__(self, cfg: AppConfig, nb: NetBoxClient):
+    def __init__(self, cfg: AppConfig, nb: NetBoxStore):
         self.cfg = cfg
         self.nb = nb
         self.tag_ids: list[int] = []
@@ -146,21 +148,24 @@ class Reconciler:
         return list(self.tag_ids)
 
     def _resolve_site_tenant(self) -> None:
-        site = self.nb.find_one(
-            "api/dcim/sites/", {"slug": slugify(self.cfg.netbox.site)}
-        ) or self.nb.find_one("api/dcim/sites/", {"name": self.cfg.netbox.site})
-        if not site:
-            site = self.nb.ensure(
-                "site",
-                "api/dcim/sites/",
-                {"slug": slugify(self.cfg.netbox.site)},
-                {
-                    "name": self.cfg.netbox.site,
-                    "slug": slugify(self.cfg.netbox.site),
-                    "status": "active",
-                },
-            )
-        self.site_id = site["id"] if site else None
+        if self.cfg.netbox.site_id:
+            self.site_id = self.cfg.netbox.site_id
+        else:
+            site = self.nb.find_one(
+                "api/dcim/sites/", {"slug": slugify(self.cfg.netbox.site)}
+            ) or self.nb.find_one("api/dcim/sites/", {"name": self.cfg.netbox.site})
+            if not site:
+                site = self.nb.ensure(
+                    "site",
+                    "api/dcim/sites/",
+                    {"slug": slugify(self.cfg.netbox.site)},
+                    {
+                        "name": self.cfg.netbox.site,
+                        "slug": slugify(self.cfg.netbox.site),
+                        "status": "active",
+                    },
+                )
+            self.site_id = site["id"] if site else None
         if self.cfg.netbox.tenant:
             tenant = self.nb.find_one(
                 "api/tenancy/tenants/", {"slug": slugify(self.cfg.netbox.tenant)}
@@ -207,20 +212,39 @@ class Reconciler:
         }
         if self.tenant_id:
             payload["tenant"] = self.tenant_id
+
+        update_fields = [
+            "type",
+            "group",
+            "scope_type",
+            "scope_id",
+            "tags",
+            "custom_fields",
+            "status",
+            "name",
+        ]
+        if self.cfg.netbox.cluster_id and not self.nb.dry_run:
+            existing = self.nb.find_one(
+                "api/virtualization/clusters/",
+                {"id": self.cfg.netbox.cluster_id},
+            )
+            if existing:
+                cluster = self.nb._write(
+                    "PATCH",
+                    "cluster",
+                    f"api/virtualization/clusters/{existing['id']}/",
+                    payload,
+                    existing,
+                )
+                self.cluster_id = (cluster or existing)["id"]
+                return
+
         cluster = self.nb.ensure(
             "cluster",
             "api/virtualization/clusters/",
             {"name": cluster_name},
             payload,
-            update_fields=[
-                "type",
-                "group",
-                "scope_type",
-                "scope_id",
-                "tags",
-                "custom_fields",
-                "status",
-            ],
+            update_fields=update_fields,
         )
         self.cluster_id = cluster["id"] if cluster else None
 
@@ -340,11 +364,20 @@ class Reconciler:
     def _sync_vms(self, inventory: Inventory) -> set[int]:
         managed: set[int] = set()
         for vm in inventory.vms:
-            nb_vm = self._upsert_vm(vm)
-            if not nb_vm:
-                continue
-            managed.add(nb_vm["id"])
-            self._sync_vm_interfaces(nb_vm, vm)
+            try:
+                from django.db import transaction
+
+                ctx = transaction.atomic()
+            except Exception:
+                from contextlib import nullcontext
+
+                ctx = nullcontext()
+            with ctx:
+                nb_vm = self._upsert_vm(vm)
+                if not nb_vm:
+                    continue
+                managed.add(nb_vm["id"])
+                self._sync_vm_interfaces(nb_vm, vm)
         return managed
 
     def _upsert_vm(self, vm: VmInfo) -> dict[str, Any] | None:
@@ -647,16 +680,31 @@ class Reconciler:
                 self.nb.delete("api/virtualization/virtual-machines/", vm["id"])
 
 
-def run_bootstrap(cfg: AppConfig) -> int:
-    with NetBoxClient(cfg.netbox, dry_run=cfg.sync.dry_run) as nb:
+def run_bootstrap(cfg: AppConfig, store: NetBoxStore | None = None) -> int:
+    owns = store is None
+    nb = store or RestStore(cfg.netbox, dry_run=cfg.sync.dry_run)
+    try:
+        if owns:
+            nb.__enter__()
         nb.ping()
         Reconciler(cfg, nb).bootstrap()
         log.info("stats=%s", nb.stats)
         return 1 if nb.stats["errors"] else 0
+    finally:
+        if owns:
+            nb.close()
 
 
-def run_sync(cfg: AppConfig, out_stats: dict[str, int] | None = None) -> int:
-    with NetBoxClient(cfg.netbox, dry_run=cfg.sync.dry_run) as nb:
+def run_sync(
+    cfg: AppConfig,
+    out_stats: dict[str, int] | None = None,
+    store: NetBoxStore | None = None,
+) -> int:
+    owns = store is None
+    nb = store or RestStore(cfg.netbox, dry_run=cfg.sync.dry_run)
+    try:
+        if owns:
+            nb.__enter__()
         status = nb.ping()
         log.info(
             "NetBox %s dry_run=%s",
@@ -667,7 +715,6 @@ def run_sync(cfg: AppConfig, out_stats: dict[str, int] | None = None) -> int:
         try:
             inventory = one.collect()
             enrich_inventory(inventory, cfg.snmp, cfg.netbox.dns_suffix)
-            # Apply DNS suffix defaults for VMs without SNMP
             for vm in inventory.vms:
                 if cfg.netbox.dns_suffix and "." not in vm.dns_name:
                     vm.dns_name = f"{slugify_vm_name(vm.name)}.{cfg.netbox.dns_suffix}"
@@ -682,3 +729,6 @@ def run_sync(cfg: AppConfig, out_stats: dict[str, int] | None = None) -> int:
             return 1 if nb.stats["errors"] else 0
         finally:
             one.close()
+    finally:
+        if owns:
+            nb.close()

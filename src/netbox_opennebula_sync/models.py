@@ -31,20 +31,6 @@ class OpenNebulaSyncConfig(JobsMixin, NetBoxModel):
     one_token_encrypted = models.TextField(blank=True)
     one_timeout = models.PositiveIntegerField(default=30)
 
-    # NetBox API used by the sync engine (localhost gunicorn by default)
-    netbox_url = models.CharField(
-        max_length=255,
-        default="http://127.0.0.1:8001",
-        help_text="Base URL the sync job uses to write to NetBox (usually local gunicorn)",
-    )
-    netbox_host_header = models.CharField(
-        max_length=255,
-        blank=True,
-        help_text="Optional Host header (e.g. netbox.example.com)",
-    )
-    netbox_token_encrypted = models.TextField(blank=True)
-    netbox_verify_ssl = models.BooleanField(default=False)
-
     # Schedule
     sync_enabled = models.BooleanField(default=True)
     sync_interval = models.PositiveIntegerField(
@@ -56,9 +42,22 @@ class OpenNebulaSyncConfig(JobsMixin, NetBoxModel):
     )
     dry_run = models.BooleanField(default=False)
 
-    # Mapping
-    site_name = models.CharField(max_length=100, blank=True, default="")
-    cluster_name = models.CharField(max_length=100, blank=True, default="OpenNebula")
+    # Mapping (dropdowns against existing NetBox objects)
+    site = models.ForeignKey(
+        to="dcim.Site",
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        related_name="+",
+    )
+    cluster = models.ForeignKey(
+        to="virtualization.Cluster",
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        related_name="+",
+        help_text="Target NetBox cluster for synchronized VMs",
+    )
     dns_suffix = models.CharField(max_length=100, blank=True, default="")
     create_missing_hosts = models.BooleanField(default=True)
 
@@ -107,13 +106,6 @@ class OpenNebulaSyncConfig(JobsMixin, NetBoxModel):
 
     def get_one_token(self) -> str:
         return decrypt_secret(self.one_token_encrypted)
-
-    def set_netbox_token(self, plaintext: str) -> None:
-        if plaintext:
-            self.netbox_token_encrypted = encrypt_secret(plaintext)
-
-    def get_netbox_token(self) -> str:
-        return decrypt_secret(self.netbox_token_encrypted)
 
     def ignore_hostnames_list(self) -> list[str]:
         return [

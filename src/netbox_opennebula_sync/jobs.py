@@ -8,6 +8,7 @@ from django.utils import timezone
 from netbox.jobs import JobRunner
 
 from .bridge import app_config_from_db
+from .django_store import DjangoStore
 from .models import OpenNebulaSyncConfig
 from .reconciler import run_sync
 
@@ -22,7 +23,8 @@ class SyncJob(JobRunner):
         stats: dict[str, int] = {}
         try:
             app_cfg = app_config_from_db(cfg)
-            rc = run_sync(app_cfg, out_stats=stats)
+            store = DjangoStore(dry_run=cfg.dry_run)
+            rc = run_sync(app_cfg, out_stats=stats, store=store)
             duration = time.monotonic() - started
             OpenNebulaSyncConfig.objects.filter(pk=cfg.pk).update(
                 last_success_at=timezone.now() if rc == 0 else cfg.last_success_at,

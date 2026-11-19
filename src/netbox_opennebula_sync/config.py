@@ -18,12 +18,14 @@ DEFAULT_IGNORE_HOSTNAMES = ("localhost", "demo", "demo.local", "ubuntu", "debian
 
 @dataclass
 class NetBoxConfig:
-    url: str
-    token: str
+    url: str = ""
+    token: str = ""
     verify_ssl: bool | str = True
     site: str = "default"
+    site_id: int | None = None
     tenant: str | None = None
     cluster_name: str | None = None
+    cluster_id: int | None = None
     create_missing_hosts: bool = True
     host_device_role: str = "Hypervisor"
     host_manufacturer: str = "Generic"

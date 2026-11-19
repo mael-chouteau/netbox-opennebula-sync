@@ -1,24 +1,45 @@
 # netbox-opennebula-sync
 
-NetBox Community **plugin** that discovers OpenNebula zones, hosts and VMs and reconciles them into Virtualization / IPAM — with a clean **Live Status** page and **Settings** UI (sync rate, credentials, SNMP).
+[![CI](https://github.com/mael-chouteau/netbox-opennebula-sync/actions/workflows/ci.yml/badge.svg)](https://github.com/mael-chouteau/netbox-opennebula-sync/actions/workflows/ci.yml)
+[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
+[![NetBox](https://img.shields.io/badge/NetBox-4.2%2B-green.svg)](https://github.com/netbox-community/netbox)
 
-Also ships a standalone CLI for automation and CI.
+NetBox Community plugin that discovers **OpenNebula** zones, hypervisors and VMs and reconciles them into NetBox **Virtualization**, **DCIM** and **IPAM** — using the Django ORM in-process (no NetBox API token required for the plugin path).
+
+Ideal for operators who already run OpenNebula and want NetBox as the single source of truth for guests, interfaces, MACs and IPs.
 
 ## Features
 
-- Plugins → **OpenNebula** → Live Status (live ONE probe) + Settings
-- Configurable sync interval (minutes), orphan policy, dry-run
-- RQ background job (`Sync now` + automatic schedule)
-- Optional SNMPv2c guest enrichment
-- Apache-2.0, NetBox 4.2+ / 4.7
+| Area | What you get |
+|------|----------------|
+| **UI** | Plugins → OpenNebula → **Live Status** (ONE probe) + **Settings** |
+| **Sync** | RQ job: on-demand *Sync now* + configurable interval (minutes) |
+| **Mapping** | Site & Cluster picked from existing NetBox objects (dropdowns) |
+| **Inventory** | Cluster type/group, hypervisors as devices, VMs, VM interfaces, virtual disks |
+| **IPAM** | MAC addresses, IP assignments, optional primary IPv4, VLAN hints |
+| **SNMP** | Optional SNMPv2c guest enrichment (hostname / interfaces) |
+| **Safety** | Dry-run, orphan policy (`mark_offline` / `delete` / `ignore`), OpenNebula custom fields |
+| **CLI** | Standalone YAML+HTTP client for remote NetBox; `manage.py opennebula_sync` for ORM |
 
-## Install (plugin)
+Compatible with **NetBox 4.2+** (tested on **4.7**). License: **Apache-2.0**.
+
+## Screenshots
+
+> Add screenshots of Live Status and Settings after first public release (optional).
+
+## Requirements
+
+- NetBox 4.2 or newer with **netbox-rq** running
+- OpenNebula XML-RPC endpoint (user with inventory read rights)
+- Python 3.11+
+
+## Installation
 
 ```bash
-/opt/netbox/venv/bin/pip install /path/to/netbox-opennebula-sync
+/opt/netbox/venv/bin/pip install git+https://github.com/mael-chouteau/netbox-opennebula-sync.git
 ```
 
-In `/opt/netbox/netbox/netbox/configuration.py`:
+In `configuration.py`:
 
 ```python
 PLUGINS = [
@@ -27,22 +48,61 @@ PLUGINS = [
 ```
 
 ```bash
-sudo /opt/netbox/venv/bin/python /opt/netbox/netbox/manage.py migrate netbox_opennebula_sync
+sudo -u netbox /opt/netbox/venv/bin/python /opt/netbox/netbox/manage.py migrate netbox_opennebula_sync
 sudo systemctl restart netbox netbox-rq
 ```
 
-Open **Plugins → OpenNebula → Settings**, enter the OpenNebula XML-RPC URL and credentials, set the sync interval, Save. Use **Live Status → Sync now** for a first run.
+1. Open **Plugins → OpenNebula → Settings**
+2. Set OpenNebula endpoint, username and token
+3. Select **Site** and **Cluster** (existing NetBox objects)
+4. Save, then **Live Status → Sync now**
 
-The RQ worker (`netbox-rq`) must be running for scheduled and on-demand sync jobs.
+The plugin writes through the **Django ORM**. You do **not** configure a NetBox URL or API token in the UI.
 
-## Standalone CLI
+## Configuration reference
+
+| Setting | Description |
+|---------|-------------|
+| OpenNebula endpoint / user / token | XML-RPC credentials |
+| Sync interval | Minutes between automatic RQ runs |
+| Orphan policy | What to do with NetBox VMs tagged `opennebula` that disappeared from ONE |
+| Dry run | Log intended changes without writing |
+| Site / Cluster | Target NetBox objects for synced inventory |
+| DNS suffix | Appended to short guest names when needed |
+| Create missing hosts | Create hypervisor devices if absent |
+| SNMP | Community, ignore list, interface exclude regex |
+
+Custom fields created on first sync: `opennebula_zone_id`, `opennebula_cluster_id`, `opennebula_host_id`, `opennebula_vm_id`, `opennebula_vm_uuid`, `opennebula_template_id`.
+
+## Operations
+
+```bash
+# Same path as the RQ job (ORM)
+sudo -u netbox /opt/netbox/venv/bin/python /opt/netbox/netbox/manage.py opennebula_sync
+sudo -u netbox /opt/netbox/venv/bin/python /opt/netbox/netbox/manage.py opennebula_sync --dry-run
+```
+
+### Standalone CLI (remote NetBox over HTTP)
 
 ```bash
 pip install .
-cp config.example.yaml config.yaml
+cp config.example.yaml config.yaml   # fill NETBOX_* and ONE_*
 netbox-opennebula-sync -c config.yaml bootstrap
 netbox-opennebula-sync -c config.yaml sync --dry-run
 ```
+
+## Development
+
+```bash
+python -m venv .venv && source .venv/bin/activate
+pip install -e ".[dev]"
+ruff check src tests
+pytest -q
+```
+
+## Catalog / community listing
+
+To suggest this plugin for the [NetBox Labs plugins catalog](https://netboxlabs.com/plugins/), contact the catalog team (see [Plugins wiki](https://github.com/netbox-community/netbox/wiki/Plugins)) and/or mention it in the NetDev Slack `#netbox-plugins` channel. A ready-to-send blurb lives in [`docs/CATALOG_SUBMISSION.md`](docs/CATALOG_SUBMISSION.md).
 
 ## License
 

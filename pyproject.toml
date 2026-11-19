@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "netbox-opennebula-sync"
-version = "0.2.0"
+version = "0.3.0"
 description = "NetBox plugin to discover and synchronize OpenNebula infrastructure"
 readme = "README.md"
 license = { text = "Apache-2.0" }
@@ -34,14 +34,19 @@ dev = ["pytest>=8.0", "ruff>=0.6"]
 netbox-opennebula-sync = "netbox_opennebula_sync.cli:main"
 
 [project.urls]
-Homepage = "https://github.com/pmbservices/netbox-opennebula-sync"
-Issues = "https://github.com/pmbservices/netbox-opennebula-sync/issues"
+Homepage = "https://github.com/mael-chouteau/netbox-opennebula-sync"
+Issues = "https://github.com/mael-chouteau/netbox-opennebula-sync/issues"
+Documentation = "https://github.com/mael-chouteau/netbox-opennebula-sync#readme"
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
 [tool.setuptools.package-data]
-netbox_opennebula_sync = ["templates/**/*.html", "migrations/*.py"]
+netbox_opennebula_sync = [
+  "templates/**/*.html",
+  "migrations/*.py",
+  "management/commands/*.py",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
