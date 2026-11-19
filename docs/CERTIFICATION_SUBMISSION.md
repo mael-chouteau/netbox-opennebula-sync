@@ -14,7 +14,7 @@
 | GitHub user ID | `mael-chouteau` (numeric id `101983244`) |
 | PyPI package | https://pypi.org/project/netbox-opennebula-sync/ |
 | PyPI user ID | `mchouteau` |
-| NetDev Slack handle | **TODO** — your Slack username |
+| NetDev Slack handle | Maël Chouteau |
 
 ## Email body
 
@@ -53,7 +53,7 @@ https://pypi.org/project/netbox-opennebula-sync/
 
 ### Slack Handle
 
-\<YOUR_NETDEV_SLACK_HANDLE\> on NetDev Community Slack (`#netbox-plugins`)
+Maël Chouteau on NetDev Community Slack (`#netbox-plugins`)
 
 Thank you for considering this submission.
 
