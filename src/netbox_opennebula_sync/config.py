@@ -30,6 +30,8 @@ class NetBoxConfig:
     host_device_type: str = "KVM Host"
     dns_suffix: str = ""
     socks_proxy: str | None = None
+    # Optional Host header (e.g. netbox.example when talking to 127.0.0.1:8001)
+    host_header: str | None = None
     timeout: float = 30.0
 
 
@@ -167,6 +169,7 @@ def load_config(path: str | Path | None = None) -> AppConfig:
                 "."
             ),
             socks_proxy=socks,
+            host_header=_env("NETBOX_HOST_HEADER", nb.get("host_header")),
             timeout=float(_env("NETBOX_TIMEOUT", nb.get("timeout") or 30)),
         ),
         opennebula=OpenNebulaConfig(

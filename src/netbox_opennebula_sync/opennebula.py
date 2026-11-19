@@ -7,7 +7,10 @@ import logging
 import re
 import xml.etree.ElementTree as ET
 from typing import Any
+from xml.sax.saxutils import escape
 from xmlrpc.client import ServerProxy, Transport
+
+import httpx
 
 from .config import OpenNebulaConfig
 from .models import DiskInfo, HostInfo, Inventory, NicInfo, VmInfo, VNetInfo
@@ -94,18 +97,108 @@ class _TimeoutTransport(Transport):
         return conn
 
 
+def _rpc_value_xml(value: Any) -> str:
+    if isinstance(value, bool):
+        return f"<value><boolean>{1 if value else 0}</boolean></value>"
+    if isinstance(value, int) and not isinstance(value, bool):
+        return f"<value><i4>{value}</i4></value>"
+    if isinstance(value, float):
+        return f"<value><double>{value}</double></value>"
+    return f"<value><string>{escape(str(value))}</string></value>"
+
+
+def _parse_rpc_value(el: ET.Element) -> Any:
+    child = next(iter(el), None)
+    if child is None:
+        return (el.text or "").strip()
+    tag = child.tag.lower()
+    text = (child.text or "").strip()
+    if tag == "boolean":
+        return text in {"1", "true"}
+    if tag in {"i4", "int"}:
+        return int(text)
+    if tag == "i8":
+        return int(text)
+    if tag == "double":
+        return float(text)
+    if tag == "string":
+        return text
+    if tag == "array":
+        data = child.find("data")
+        if data is None:
+            return []
+        return [_parse_rpc_value(v) for v in data.findall("value")]
+    if tag == "struct":
+        out: dict[str, Any] = {}
+        for member in child.findall("member"):
+            name = (member.findtext("name") or "").strip()
+            val = member.find("value")
+            out[name] = _parse_rpc_value(val) if val is not None else None
+        return out
+    return text
+
+
 class OpenNebulaClient:
-    def __init__(self, cfg: OpenNebulaConfig):
+    def __init__(self, cfg: OpenNebulaConfig, proxy: str | None = None):
         self.cfg = cfg
-        transport = _TimeoutTransport(cfg.timeout)
-        self.proxy = ServerProxy(cfg.endpoint, allow_none=True, transport=transport)
+        self.proxy = proxy
+        self._http: httpx.Client | None = None
+        self.proxy_rpc = bool(proxy)
+        if not self.proxy_rpc:
+            transport = _TimeoutTransport(cfg.timeout)
+            self.proxy_rpc_client = ServerProxy(
+                cfg.endpoint, allow_none=True, transport=transport
+            )
+        else:
+            self._http = httpx.Client(
+                proxy=proxy,
+                timeout=cfg.timeout,
+                follow_redirects=True,
+            )
+
+    def close(self) -> None:
+        if self._http is not None:
+            self._http.close()
 
     def _call(self, method: str, *args: Any) -> str:
-        fn = getattr(self.proxy, method)
+        if self.proxy_rpc:
+            return self._call_httpx(method, *args)
+        fn = getattr(self.proxy_rpc_client, method)
         result = fn(self.cfg.credentials, *args)
         if not isinstance(result, (list, tuple)) or len(result) < 2:
             raise RuntimeError(f"{method}: unexpected response {result!r}")
         ok, payload = result[0], result[1]
+        if not ok:
+            raise RuntimeError(f"{method}: {payload}")
+        return str(payload)
+
+    def _call_httpx(self, method: str, *args: Any) -> str:
+        assert self._http is not None
+        params = [_rpc_value_xml(self.cfg.credentials), *(_rpc_value_xml(a) for a in args)]
+        body = (
+            '<?xml version="1.0"?>'
+            f"<methodCall><methodName>{escape(method)}</methodName><params>"
+            + "".join(f"<param>{p}</param>" for p in params)
+            + "</params></methodCall>"
+        )
+        resp = self._http.post(
+            self.cfg.endpoint,
+            content=body.encode("utf-8"),
+            headers={"Content-Type": "text/xml"},
+        )
+        if resp.status_code >= 400:
+            raise RuntimeError(f"{method}: HTTP {resp.status_code}: {resp.text[:300]}")
+        root = ET.fromstring(resp.text)
+        fault = root.find("fault")
+        if fault is not None:
+            raise RuntimeError(f"{method}: XML-RPC fault: {resp.text[:300]}")
+        value = root.find("./params/param/value")
+        if value is None:
+            raise RuntimeError(f"{method}: empty XML-RPC response")
+        parsed = _parse_rpc_value(value)
+        if not isinstance(parsed, list) or len(parsed) < 2:
+            raise RuntimeError(f"{method}: unexpected response {parsed!r}")
+        ok, payload = parsed[0], parsed[1]
         if not ok:
             raise RuntimeError(f"{method}: {payload}")
         return str(payload)
@@ -164,9 +257,7 @@ class OpenNebulaClient:
         for vm in ET.fromstring(vm_xml).findall("VM"):
             state = _int(vm, "STATE")
             status = VM_STATE_MAP.get(state, "offline")
-            # LCM_STATE 3 = RUNNING inside ACTIVE
             if state == 3 and _int(vm, "LCM_STATE") not in {3, 0}:
-                # keep active for most LCM states while VM exists
                 status = "active"
 
             history = vm.findall("HISTORY_RECORDS/HISTORY")

@@ -24,6 +24,9 @@ class NetBoxClient:
             "Accept": "application/json",
             "Content-Type": "application/json",
         }
+        if cfg.host_header:
+            headers["Host"] = cfg.host_header
+            headers["X-Forwarded-Proto"] = "https"
         proxies = cfg.socks_proxy
         # httpx uses proxy= for all schemes when a string is given
         self._client = httpx.Client(
@@ -61,6 +64,20 @@ class NetBoxClient:
         results = data.get("results") or []
         return results[0] if results else None
 
+    def _rewrite_next(self, next_url: str | None) -> str | None:
+        """Map absolute NetBox pagination URLs back onto our base_url (e.g. 127.0.0.1:8001)."""
+        if not next_url:
+            return None
+        if next_url.startswith("http://") or next_url.startswith("https://"):
+            from urllib.parse import urlparse
+
+            parsed = urlparse(next_url)
+            path = parsed.path or "/"
+            if parsed.query:
+                path = f"{path}?{parsed.query}"
+            return path.lstrip("/")
+        return next_url
+
     def list_all(self, path: str, params: dict[str, Any] | None = None) -> list[dict[str, Any]]:
         params = dict(params or {})
         params.setdefault("limit", 100)
@@ -72,13 +89,12 @@ class NetBoxClient:
                 data = self.get_json(next_url, params)
                 first = False
             else:
-                # Absolute next URL from NetBox pagination
                 resp = self._client.get(next_url)
                 if resp.status_code >= 400:
                     raise RuntimeError(f"GET {next_url} HTTP {resp.status_code}")
                 data = resp.json()
             out.extend(data.get("results") or [])
-            next_url = data.get("next")
+            next_url = self._rewrite_next(data.get("next"))
         return out
 
     def ensure(
@@ -120,7 +136,11 @@ class NetBoxClient:
                 self.stats["updated"] += 1
                 return existing
             self.stats["created"] += 1
-            return None
+            # Synthetic object so dry-run can walk the full reconcile chain
+            stub = dict(payload)
+            stub.setdefault("id", -abs(hash((kind, str(label)))) % 10_000_000 or 1)
+            stub.setdefault("name", label)
+            return stub
         resp = self.request(method, path, json=payload)
         if resp.status_code in (200, 201):
             data = resp.json()

@@ -21,7 +21,7 @@ CUSTOM_FIELDS = [
         "object_types": ["virtualization.clustergroup"],
         "description": "OpenNebula zone identifier",
         "filter_logic": "exact",
-        "ui_visible": "read-write",
+        "ui_visible": "always",
         "ui_editable": "yes",
     },
     {
@@ -31,7 +31,7 @@ CUSTOM_FIELDS = [
         "object_types": ["virtualization.cluster"],
         "description": "OpenNebula cluster identifier",
         "filter_logic": "exact",
-        "ui_visible": "read-write",
+        "ui_visible": "always",
         "ui_editable": "yes",
     },
     {
@@ -41,7 +41,7 @@ CUSTOM_FIELDS = [
         "object_types": ["dcim.device"],
         "description": "OpenNebula hypervisor host identifier",
         "filter_logic": "exact",
-        "ui_visible": "read-write",
+        "ui_visible": "always",
         "ui_editable": "yes",
         "unique": True,
     },
@@ -52,7 +52,7 @@ CUSTOM_FIELDS = [
         "object_types": ["virtualization.virtualmachine"],
         "description": "OpenNebula virtual machine identifier",
         "filter_logic": "exact",
-        "ui_visible": "read-write",
+        "ui_visible": "always",
         "ui_editable": "yes",
         "unique": True,
     },
@@ -63,7 +63,7 @@ CUSTOM_FIELDS = [
         "object_types": ["virtualization.virtualmachine"],
         "description": "Guest UUID from OpenNebula OS section",
         "filter_logic": "exact",
-        "ui_visible": "read-write",
+        "ui_visible": "always",
         "ui_editable": "yes",
     },
     {
@@ -73,7 +73,7 @@ CUSTOM_FIELDS = [
         "object_types": ["virtualization.virtualmachine"],
         "description": "Source OpenNebula template identifier",
         "filter_logic": "exact",
-        "ui_visible": "read-write",
+        "ui_visible": "always",
         "ui_editable": "yes",
     },
 ]
@@ -366,7 +366,8 @@ class Reconciler:
             "site": self.site_id,
             "vcpus": vm.vcpus,
             "memory": vm.memory_mb,
-            "disk": max(1, sum(d.size_mb for d in vm.disks) // 1024) if vm.disks else None,
+            # NetBox VM.disk and VirtualDisk.size are both in MB
+            "disk": max(1, sum(d.size_mb for d in vm.disks)) if vm.disks else None,
             "platform": self._platform_id(vm.platform),
             "device": device_id,
             "tags": self._tag_payload(),
@@ -393,9 +394,13 @@ class Reconciler:
                 existing,
             )
         # Fallback by name to avoid duplicates during first migration
+        name_lookup: dict[str, Any] = {"name": name}
+        # Skip cluster filter in dry-run (cluster id is synthetic)
+        if self.cluster_id and not self.nb.dry_run:
+            name_lookup["cluster_id"] = self.cluster_id
         by_name = self.nb.find_one(
             "api/virtualization/virtual-machines/",
-            {"name": name, "cluster_id": self.cluster_id},
+            name_lookup,
         )
         if by_name:
             return self.nb._write(
@@ -415,6 +420,43 @@ class Reconciler:
 
     def _sync_vm_interfaces(self, nb_vm: dict[str, Any], vm: VmInfo) -> None:
         vm_id = nb_vm["id"]
+        # Dry-run stubs are not queryable via NetBox filters
+        if self.nb.dry_run:
+            for idx, nic in enumerate(vm.nics):
+                ifname = nic.name or f"eth{idx}"
+                self.nb._write(
+                    "POST",
+                    "vminterface",
+                    "api/virtualization/interfaces/",
+                    {"name": ifname, "virtual_machine": vm_id},
+                    None,
+                )
+                if nic.mac:
+                    self.nb._write(
+                        "POST",
+                        "mac-address",
+                        "api/dcim/mac-addresses/",
+                        {"mac_address": nic.mac},
+                        None,
+                    )
+                if nic.ip:
+                    self.nb._write(
+                        "POST",
+                        "ip-address",
+                        "api/ipam/ip-addresses/",
+                        {"address": f"{nic.ip}/{nic.prefix_len}"},
+                        None,
+                    )
+            for disk in vm.disks:
+                self.nb._write(
+                    "POST",
+                    "virtual-disk",
+                    "api/virtualization/virtual-disks/",
+                    {"name": disk.name or "disk", "size": disk.size_mb},
+                    None,
+                )
+            return
+
         existing_ifaces = {
             i["name"]: i
             for i in self.nb.list_all(
@@ -466,7 +508,6 @@ class Reconciler:
                 if ip_obj and primary_ip_id is None and ":" not in nic.ip:
                     primary_ip_id = ip_obj["id"]
 
-        # Sync virtual disks
         existing_disks = {
             d["name"]: d
             for d in self.nb.list_all(
@@ -585,6 +626,8 @@ class Reconciler:
         policy = self.cfg.sync.orphan_policy
         if policy == "ignore":
             return
+        if not self.cluster_id or self.nb.dry_run:
+            return
         for vm in self.nb.list_all(
             "api/virtualization/virtual-machines/",
             {"cluster_id": self.cluster_id, "tag": "opennebula"},
@@ -620,17 +663,20 @@ def run_sync(cfg: AppConfig) -> int:
             status.get("netbox-version"),
             cfg.sync.dry_run,
         )
-        one = OpenNebulaClient(cfg.opennebula)
-        inventory = one.collect()
-        enrich_inventory(inventory, cfg.snmp, cfg.netbox.dns_suffix)
-        # Apply DNS suffix defaults for VMs without SNMP
-        for vm in inventory.vms:
-            if cfg.netbox.dns_suffix and "." not in vm.dns_name:
-                vm.dns_name = f"{slugify_vm_name(vm.name)}.{cfg.netbox.dns_suffix}"
-            elif not vm.dns_name:
-                vm.dns_name = slugify_vm_name(vm.name)
-        rec = Reconciler(cfg, nb)
-        rec.bootstrap()
-        rec.sync(inventory)
-        log.info("stats=%s", nb.stats)
-        return 1 if nb.stats["errors"] else 0
+        one = OpenNebulaClient(cfg.opennebula, proxy=cfg.netbox.socks_proxy)
+        try:
+            inventory = one.collect()
+            enrich_inventory(inventory, cfg.snmp, cfg.netbox.dns_suffix)
+            # Apply DNS suffix defaults for VMs without SNMP
+            for vm in inventory.vms:
+                if cfg.netbox.dns_suffix and "." not in vm.dns_name:
+                    vm.dns_name = f"{slugify_vm_name(vm.name)}.{cfg.netbox.dns_suffix}"
+                elif not vm.dns_name:
+                    vm.dns_name = slugify_vm_name(vm.name)
+            rec = Reconciler(cfg, nb)
+            rec.bootstrap()
+            rec.sync(inventory)
+            log.info("stats=%s", nb.stats)
+            return 1 if nb.stats["errors"] else 0
+        finally:
+            one.close()
