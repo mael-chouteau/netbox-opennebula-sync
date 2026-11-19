@@ -21,7 +21,7 @@ def test_mask_to_prefixlen():
 
 def test_slugify_vm_name():
     assert slugify_vm_name("Belenios") == "belenios"
-    assert slugify_vm_name("passerelle_admin") == "passerelle_admin"
+    assert slugify_vm_name("passerelle_admin") == "passerelle-admin"
     assert slugify_vm_name("  Foo  Bar!! ") == "foo-bar"
     assert slugify_vm_name("...") == "vm"
 

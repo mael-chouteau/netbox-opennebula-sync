@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.2
+
+- Fix ORM IP lookup: use `address__net_host` so sync no longer recreates duplicate `IPAddress` rows.
+- Assign primary FQDN only to the primary NIC; Admin/iSCSI secondaries get a role suffix or stay empty.
+- Sanitize `_` → `-` in VM / DNS labels for RFC 1035 and `netbox-plugin-dns` compatibility.
+
 ## 0.3.1
 
 - Fix sidenav double-highlight: Live Status and Settings are sibling URLs (`/status/`, `/settings/`) so NetBox no longer marks both active.

@@ -8,7 +8,7 @@ from typing import Any
 from .config import AppConfig
 from .inventory import Inventory, VmInfo
 from .netbox import slugify
-from .opennebula import OpenNebulaClient, slugify_vm_name
+from .opennebula import OpenNebulaClient, dns_name_for_nic, slugify_vm_name
 from .rest_store import RestStore
 from .snmp import enrich_inventory
 from .store import NetBoxStore
@@ -537,8 +537,9 @@ class Reconciler:
                 self._ensure_mac(iface, nic.mac)
 
             if nic.ip:
-                ip_obj = self._ensure_ip(vm, iface, nic)
-                if ip_obj and primary_ip_id is None and ":" not in nic.ip:
+                is_primary = primary_ip_id is None and ":" not in nic.ip
+                ip_obj = self._ensure_ip(vm, iface, nic, is_primary=is_primary)
+                if ip_obj and is_primary:
                     primary_ip_id = ip_obj["id"]
 
         existing_disks = {
@@ -622,16 +623,24 @@ class Reconciler:
                     iface,
                 )
 
-    def _ensure_ip(self, vm: VmInfo, iface: dict[str, Any], nic: Any) -> dict[str, Any] | None:
+    def _ensure_ip(
+        self,
+        vm: VmInfo,
+        iface: dict[str, Any],
+        nic: Any,
+        *,
+        is_primary: bool = False,
+    ) -> dict[str, Any] | None:
         address = f"{nic.ip}/{nic.prefix_len}"
         existing = self.nb.find_one("api/ipam/ip-addresses/", {"address": nic.ip})
         dns = vm.dns_name
         if self.cfg.netbox.dns_suffix and dns and "." not in dns:
             dns = f"{dns}.{self.cfg.netbox.dns_suffix}"
+        dns = dns_name_for_nic(dns or "", is_primary=is_primary, network=nic.network or "")
         payload: dict[str, Any] = {
             "address": address,
             "status": "active",
-            "dns_name": dns or "",
+            "dns_name": dns,
             "description": f"{vm.name} {nic.network}".strip()[:200],
             "assigned_object_type": "virtualization.vminterface",
             "assigned_object_id": iface["id"],
