@@ -98,7 +98,7 @@ class DjangoStore:
             Site,
         )
         from extras.models import CustomField, Tag
-        from ipam.models import IPAddress, VLAN
+        from ipam.models import VLAN, IPAddress
         from tenancy.models import Tenant
         from virtualization.models import (
             Cluster,

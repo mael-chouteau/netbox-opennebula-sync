@@ -1,5 +1,5 @@
-from django import forms
 from dcim.models import Site
+from django import forms
 from utilities.forms.fields import DynamicModelChoiceField
 from virtualization.models import Cluster
 
