@@ -1,6 +1,6 @@
 """Synchronize OpenNebula inventory into NetBox Community (plugin + CLI)."""
 
-__version__ = "0.3.2"
+__version__ = "0.3.3"
 
 try:
     from netbox.plugins import PluginConfig

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.3
+
+- Remove personal catalog/certification draft docs from the public package README / repo.
+
 ## 0.3.2
 
 - Fix ORM IP lookup: use `address__net_host` so sync no longer recreates duplicate `IPAddress` rows.
