@@ -101,13 +101,6 @@ ruff check src tests
 pytest -q
 ```
 
-## Catalog / certification
-
-- Catalog blurb: [`docs/CATALOG_SUBMISSION.md`](docs/CATALOG_SUBMISSION.md)  
-- **Plugin Certification** application (email `plugincertification@netboxlabs.com`): [`docs/CERTIFICATION_SUBMISSION.md`](docs/CERTIFICATION_SUBMISSION.md)  
-
-Certification requires a published **PyPI** package plus GitHub, PyPI and NetDev Slack maintainer IDs.
-
 ## License
 
 Apache License 2.0 — see [LICENSE](LICENSE).
